@@ -2,3 +2,10 @@
 *.zip
 *.mlx
 *.mat
+adjustTilt.m
+detectVUV.m
+getPhonesResult.m
+get_audio_and_alignment.m
+p2pModificationV.m
+lombardgrid
+lombardgrid_paired

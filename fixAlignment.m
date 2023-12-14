@@ -11,18 +11,17 @@
 
 clearvars
 load lombardgrid_paired/corpusCleaned.mat
+load lombardgrid_paired/vadThreshold.mat
+
+% tilt_threshold = tilt_threshold - abs(tilt_threshold * 0.2);
+% intensity_threshold = intensity_threshold + abs(intensity_threshold * 0.);
 
 [~, fs] = audioread(fullfile('lombardgrid_paired/audio/',...
                 [corpusCleaned.FNAME_P{1}, '.wav']));
 
-frameSize = fix(0.02 * fs);
-win = hann(frameSize,"periodic");
-overlap = 0.50;
-shiftSize = fix((1 - overlap) * frameSize);
-threshold_tilt = 0.1;
-threhsold_intensity = 0.1
+shiftSize = fix(0.02 * fs);
 
-%%  Assume that each utterances has sounds less than 20 
+%%  Assume that each utterances has sounds less than 30 
 size = [height(corpusCleaned) * 30*2 4];
 
 alignments = table('Size', size, 'VariableTypes', {'string','string','int32','int32'}, ...
@@ -46,9 +45,12 @@ for i = 1:height(corpusCleaned)
 
     alignment_p = getAlignment(corpusCleaned.FNAME_P{i},fs);
     alignment_l = getAlignment(corpusCleaned.FNAME_L{i},fs);
+    
+    spkr = corpusCleaned.SPKR{i};
 
-    alignment_p_fixed = alignmentOffset(audio_p, alignment_p, fs, frameSize, win, overlap, threshold);
-    alignment_l_fixed = alignmentOffset(audio_l, alignment_l, fs, frameSize, win, overlap, threshold);
+    [alignment_p_fixed, alignment_l_fixed] ...
+    = alignmentOffset(audio_p, audio_l, alignment_p, alignment_l, fs, shiftSize);
+
 
     endIdx = startIdx + height(alignment_p_fixed) - 1;
     alignments(startIdx : endIdx, :) = alignment_p_fixed;
@@ -57,15 +59,6 @@ for i = 1:height(corpusCleaned)
     endIdx = startIdx + height(alignment_l_fixed) - 1;
     alignments(startIdx : endIdx, :) = alignment_l_fixed;
 
-    if alignment_p_fixed.offset(end)+alignment_p_fixed.duration(end)  > length(audio_p)
-        disp(alignment_p_fixed.utter_info(1));
-    end
-
-    if alignment_l_fixed.offset(end)+alignment_l_fixed.duration(end)  > length(audio_l)
-        disp(alignment_l_fixed.utter_info(1));
-    end
-    
-
 end
 
 toc
@@ -73,65 +66,118 @@ toc
 alignments = rmmissing(alignments);
 
 save(fullfile('lombardgrid_paired','alignments_fixed'),"alignments");
+
+
 %%
-function alignment = alignmentOffset(audio, alignment, fs, frameSize, win, overlap, threshold)
-    
-        method = 6;
-        emp_coeff = -0.97;
-        shiftSize = fix((1 - overlap) * frameSize);
-        voiceless = {'ch_','f_','k_','p_','s_','sh_','t_','th_'};
-        
-        itr = fix((length(audio) - (frameSize -  shiftSize)) / shiftSize) - 1;
-        
-        startIdx = 1;
-        endIdx = startIdx + frameSize - 1;
-        
-        spectilt = zeros(itr,1);
-        intensity = zeros(itr,1);
-        
-        for i = 1:itr
-        
-            audioFrame = audio(startIdx : endIdx) .* win;
-            audioFrame = audioFrame - mean(audioFrame);
-        
-            spectilt(i) = myGetSpectralTilt(audioFrame, fs, method);
-            intensity(i) = rms(audioFrame);
-        
-            startIdx = startIdx + shiftSize;
-            endIdx = startIdx + frameSize - 1;
-        
+function [alignment_p, alignment_l] = alignmentOffset(audio_p, audio_l, alignment_p, alignment_l, fs, shiftSize)
+   
+    alignment_p.offset = alignment_p.offset - alignment_p.offset(1) + 1;
+    alignment_l.offset = alignment_l.offset - alignment_l.offset(1) + 1;
+
+    itr_p = round((length(audio_p) - alignment_p.duration(end) - alignment_p.offset(end)) / shiftSize * 0.9);
+    itr_l = round((length(audio_l) - alignment_l.duration(end) - alignment_l.offset(end)) / shiftSize * 0.9);
+
+    alignment_p_tmp = alignment_p;
+    alignment_l_tmp = alignment_l;
+
+    startIdx = [-Inf, nan, nan];
+
+    for i = 1:itr_p
+        alignment_p_tmp.offset = alignment_p.offset + shiftSize * (i-1);
+
+        for j = 1:itr_l
+            alignment_l_tmp.offset = alignment_l.offset + shiftSize * (j-1);
+            [zerox_score, rms_score] = measureVoiced(audio_p, audio_l, alignment_p_tmp, alignment_l_tmp, fs);
+
+            if rms_score * zerox_score > startIdx(1)
+                startIdx = [zerox_score * rms_score, i, j];
+            end
+
         end
-        
-        %%Normalize
-    
-        spectilt = normalize(spectilt, 'range');
-        intensity = normalize(intensity, 'range');
-        
-        spectilt = resample(spectilt, length(audio), itr);
-        intensity = resample(intensity, length(audio), itr);
-    
-    %% Intensity is more strong parameter of voiced part than spectral tilt 
-    %% Therefore, arbitrary weighting is done to detect voiced part
-    % in the case of [l], spectilt should have smaller weighting than others
-    % because [l] is not fricative/bilabial sound.
-    if contains(alignment.phone{1},'l')
-        detection = intensity - 0.15 * spectilt;
-    elseif contains(alignment.phone{1},'b')
-        detection = intensity - 0.5 * spectilt;
-    elseif contains(alignment.phone{1}, 'p')
-        detection = intensity - 0.6 * spectilt;
-    else
-        detection = intensity - 0.6 * spectilt;
+
+
+
     end
     
-    %% In the voiced sound, intensity > spectilt (both normalized)
-    firstZero = find(detection > threshold, 1) + frameSize/2;
-    firstVoiced = find(~contains(alignment.phone, voiceless),1);
+%     alignment_p.offset = alignment_p.offset + shiftSize * relerr_min(2);
+%     alignment_l.offset = alignment_l.offset + shiftSize * relerr_min(3);
+    alignment_p.offset = alignment_p.offset + shiftSize * startIdx(2);
+    alignment_l.offset = alignment_l.offset + shiftSize * startIdx(3);
+
+end
+
+
+
+
+
+
+function [zerox_score, rms_score] = measureVoiced(audio_p, audio_l, alignment_p, alignment_l, fs)
+
+    % selection of the measurement method for spectral tilt
+    method = 6;
+    emp_coeff = -0.97;
+    voiceless = {'ch_','f_','k_','p_','s_','sh_','t_','th_'}; 
+
+    plainLength = height(alignment_p);
     
-    alignment.offset = alignment.offset - alignment.offset(firstVoiced) + firstZero;
+    %% Rounding of segment ends by 30ms by hann window
+    edgeFrame = fix(0.03 * fs);
+
+    rms_score = 0;
+    zerox_score = 0;
+
+    segStart_p = alignment_p.offset + edgeFrame;
+    segEnd_p = alignment_p.offset + alignment_p.duration + edgeFrame - 1;
+    segStart_l = alignment_l.offset + edgeFrame;
+    segEnd_l = alignment_l.offset + alignment_l.duration + edgeFrame - 1;
+
+    % Add 30ms silence to the edges of the audio signal to do windowing 
+    audio_p = [zeros(edgeFrame, 1); audio_p; zeros(edgeFrame, 1)];
+    audio_l = [zeros(edgeFrame, 1); audio_l; zeros(edgeFrame, 1)];
+                    
+    for i = 1 : plainLength
+
+        seg_p = audio_p( (segStart_p(i) - edgeFrame * 0.5) : (segEnd_p(i) + edgeFrame * 0.5) );  
+        seg_l = audio_l( (segStart_l(i) - edgeFrame * 0.5) : (segEnd_l(i) + edgeFrame * 0.5) );
+
+        seg_p = seg_p - mean(seg_p);
+        seg_l = seg_l - mean(seg_l);
+
+        seg_p = edgeWindowing(seg_p, edgeFrame * 2);
+        seg_l = edgeWindowing(seg_l, edgeFrame * 2);
+
+        seg_p = filter([1 emp_coeff], 1, seg_p);
+        seg_l = filter([1 emp_coeff], 1, seg_l);
+
+        if ~contains(alignment_p.phone{i},voiceless)
+            zerox_tmp = (1 - zerocrossrate(seg_p)) + (1 - zerocrossrate(seg_l));
+            rms_tmp = rms(seg_p) + rms(seg_l);
+
+            zerox_score = zerox_score + zerox_tmp;
+            rms_score = rms_score + rms_tmp;
+        else
+            zerox_tmp = zerocrossrate(seg_p) + zerocrossrate(seg_l);
+            rms_tmp = rms(seg_p) + rms(seg_l);
+
+            zerox_score = zerox_score + zerox_tmp * 0.5;
+            rms_score = rms_score + rms_tmp * 0.5;
+
+        end
+    end
+        
+    rms_tmp = rms(audio_p(1:segStart_p(1))) + rms(audio_l(1:segStart_l(1)))+...
+              rms(audio_p(segEnd_p(end) : end)) + rms(audio_l(segEnd_l(end) : end));
+
+    rms_score = rms_score - rms_tmp;
 
 
 end
+
+
+
+
+
+
 
 function alignment = getAlignment(fname, fs)
 
@@ -144,7 +190,7 @@ function alignment = getAlignment(fname, fs)
     fclose(fileID);
     
     alignment = struct2table(jsondecode(str).(fname));
-    % Exclude silence and voiceless sounds from the alignment
+    % Exclude silence segment from the alignment
     alignment = alignment(~contains(alignment.phone,'SIL'),:);
     
     utter_info = table(repmat({fname}, height(alignment), 1) ...
@@ -158,7 +204,7 @@ function alignment = getAlignment(fname, fs)
 end
 
 function [] = plotAlignment(audio, alignment, fs)
-    
+
     t = linspace(1,length(audio)/fs, length(audio));
 
     figure;
