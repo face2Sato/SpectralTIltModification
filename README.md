@@ -1,9 +1,9 @@
 # Spectral tilt modification by fractional roll-off filter
-This project provides the spectral tilt modifications of plain speech (speech produced in a quiet environment) to resemble Lombard speech (speech produced in a noisy environment) by **Fractional Roll-off Filter**.
+This project provides the spectral tilt modification of plain speech (speech produced in a quiet environment) to resemble corresponding Lombard speech (speech produced in a noisy environment) by **Fractional Roll-off Filter**.
 The spectral modification is employed in the three scales: whole utterance, each phone, and each frame.
 
 Our research *"Spectral Tilt May Have a Smaller Impact on the Intelligibility of
-Speech in Noise"* is presented by [IEEE ASRU 2023](http://www.asru2023.org/).
+Speech in Noise"* is presented in [IEEE ASRU 2023](http://www.asru2023.org/).
 
 ## Requirements
 - MATLAB 9.13.0.2166757 (R2022b)
