@@ -5,7 +5,7 @@ The spectral modification is employed in the three scales: whole utterance, each
 Our research *"Spectral Tilt May Have a Smaller Impact on the Intelligibility of
 Speech in Noise"* is presented in [IEEE ASRU 2023](http://www.asru2023.org/).
 
-## Requirements
+## Environments
 - MATLAB 9.13.0.2166757 (R2022b)
 - macOS Ventura Version 13.31 (a)
 
