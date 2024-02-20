@@ -2,8 +2,9 @@
 This project provides the spectral tilt modification of plain speech (speech produced in a quiet environment) to resemble corresponding Lombard speech (speech produced in a noisy environment) by **Fractional Roll-off Filter**.
 The spectral modification is employed in the three scales: whole utterance, each phone, and each frame.
 
-Our research *"Spectral Tilt May Have a Smaller Impact on the Intelligibility of
-Speech in Noise"* is presented in [IEEE ASRU 2023](http://www.asru2023.org/).
+Our research was presented in [IEEE ASRU 2023](http://www.asru2023.org/).
+
+Y. Sato and J. Villegas, "Spectral Tilt May Have a Smaller Impact on the Intelligibility of Speech in Noise," 2023 IEEE Automatic Speech Recognition and Understanding Workshop (ASRU), Taipei, Taiwan, 2023, pp. 1-5, doi: 10.1109/ASRU57964.2023.10389688.
 
 ## Environments
 - MATLAB 9.13.0.2166757 (R2022b)
