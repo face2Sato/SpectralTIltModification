@@ -16,4 +16,4 @@ _Y. Sato and J. Villegas, "Spectral Tilt May Have a Smaller Impact on the Intell
 This corpus contains 2,700 pairs of Lombard and plain utterances produced by 54 speakers. Each speaker utters sentences of [the Grid corpus](https://laslab.org/wp-content/uploads/2021/09/an_audio-visual_corpus_for_speech_perception_and_automatic_speech_recognition.pdf).
 
 ## Contact
-- m5261157@u-aizu.ac.jp
+- main8102000@gmail.com
